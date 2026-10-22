@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **6&2 Games** (`6a2games.cz`) — web s retro arkádovými hrami, jedna hra = jedna složka v `games/`. **Žádný build krok pro web ani žádná CI**: hry běží přímo v prohlížeči a GitHub Pages servíruje repo **přímo z větve `main`** (doména přes `CNAME`), takže **deploy = `git push` na `main`**. Jediné build/CLI kroky jsou pomocné (komprese hudby, leaderboard worker) — viz níže.
 
-⚠️ **Repo musí zůstat veřejné.** Na free tarifu GitHub Pages z privátního repa nejede: přepnutím na soukromé (nebo koncem GitHub Pro) GitHub Pages vypne i se zapomenutím vlastní domény a web vrací 404 (stalo se 10/2026). Obnova: zveřejnit repo, znovu zapnout Pages z `main` (kořen), nastavit doménu `6a2games.cz` a Enforce HTTPS.
+⚠️ **Repo musí zůstat veřejné.** Na free tarifu GitHub Pages z privátního repa nejede: přepnutím na soukromé (nebo koncem GitHub Pro) GitHub Pages vypne i se zapomenutím vlastní domény a web vrací 404 (stalo se 10/2026). Obnova: zveřejnit repo, znovu zapnout Pages z `main` (kořen), nastavit doménu `6a2games.cz` a Enforce HTTPS. Hlásí-li GitHub „domain is already taken", doménu drží jiný (i osiřelý) Pages web → uvolní ji jen **ověření domény** v účtu (Settings → Pages → Add a domain → TXT záznam `_github-pages-challenge-6a2` u DNS správce, viz `CLAUDE.local.md`).
 
 Orientačně: `index.html` = rozcestník (+ `menu-ambient.js` = syntetizovaný ambient zvuk menu), `games/party-survivors/` = hlavní hra (Phaser 3, vlastní detailní `README.md`), `games/pong/` = menší hra (celá v jednom `index.html`).
 
