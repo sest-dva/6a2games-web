@@ -11,6 +11,8 @@ games/party-survivors/logika.xlsx
 ~$*.xlsx
 # Uživatelova interní složka s pracovními materiály — jen lokálně, ne na GitHub
 games/party-survivors/.gitignore/
+# Lokální stav/cache Wrangleru (Cloudflare CLI) — do gitu nepatří
+games/party-survivors/.wrangler/
 
 # Party Survivors — hudební mastery zůstávají jen lokálně; do hry/deploye jdou
 # jen komprimované MP3 v music/compressed/ (generuje tools/build-music.js).
