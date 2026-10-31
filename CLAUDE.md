@@ -2,98 +2,44 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Konvence repa: kód, komentáře i UI texty jsou **česky** (s plnou diakritikou). Drž se toho i v nových souborech.
+> Konvence repa: kód, komentáře, UI texty i dokumentace jsou **česky** (s plnou diakritikou).
 
 ## Co to je
 
-**6&2 Games** (`6a2games.cz`) — web s retro arkádovými hrami, jedna hra = jedna složka v `games/`. **Žádný build krok pro web ani žádná CI**: hry běží přímo v prohlížeči a GitHub Pages servíruje repo **přímo z větve `main`** (doména přes `CNAME`), takže **deploy = `git push` na `main`**. Jediné build/CLI kroky jsou pomocné (komprese hudby, leaderboard worker) — viz níže.
+**6&2 Games** (`6a2games.cz`) — web s retro arkádovými hrami v prohlížeči. `index.html` je
+rozcestník, každá hra má vlastní složku `games/<hra>/` (seznam: `ls games/`). Jediná část s Node
+závislostmi je leaderboard backend Party Survivors (Cloudflare Worker).
 
-⚠️ **Repo musí zůstat veřejné.** Na free tarifu GitHub Pages z privátního repa nejede: přepnutím na soukromé (nebo koncem GitHub Pro) GitHub Pages vypne i se zapomenutím vlastní domény a web vrací 404 (stalo se 10/2026). Obnova: zveřejnit repo, znovu zapnout Pages z `main` (kořen), nastavit doménu `6a2games.cz` a Enforce HTTPS. Doména je u GitHub účtu **ověřená** (TXT záznam `_github-pages-challenge-6a2` u DNS správce, viz `CLAUDE.local.md`) — záznam **nemazat**, jinak ji může zabrat cizí Pages web a GitHub pak hlásí „domain is already taken".
+## Platí vždy
 
-Orientačně: `index.html` = rozcestník (+ `menu-ambient.js` = syntetizovaný ambient zvuk menu), `games/party-survivors/` = hlavní hra (Phaser 3, vlastní detailní `README.md`), `games/pong/` = menší hra (celá v jednom `index.html`).
+- **Žádný build, bundler ani ES moduly** — čisté HTML/CSS/JS přes `<script>` tagy, musí jet
+  i z `file://`.
+- **`git push` na `main` = okamžité nasazení na ostrý web** (GitHub Pages). Pushovat jen se
+  souhlasem uživatele.
+- **Repo musí zůstat veřejné**, jinak web spadne (viz `docs/provoz.md`).
+- **Mobil na šířku je first-class** — každý nový UI prvek řeš i pro dotyk.
+- Lokální spuštění: `python -m http.server` v kořeni → `http://localhost:8000/index.html`.
 
-## Zdroje pravdy (a jak je držet v synchronu)
+## Rozcestník dokumentace — když… → čti
 
-Repo má kvalitní README; aby se s tímhle souborem nerozjely, má každá oblast **jediného vlastníka** a CLAUDE.md jeho obsah **needuplikuje — odkazuje**.
-
-| Oblast | Kanonický zdroj |
+| Když | Čti |
 |---|---|
-| Vize, zásady vývoje, „přidání nové hry" | `README.md` (kořen) |
-| Vnitřek Party Survivors (architektura, **balanc-mechaniky a čísla**, gotchas) | `games/party-survivors/README.md` |
-| Nasazení leaderboard backendu | `games/party-survivors/leaderboard-server/README.md` |
-| Operační pokyny pro agenta: příkazy, deploy webu, cross-file vazby | **tenhle soubor** |
-| **Pracovní preference/metoda uživatele** (jak balancovat, jak s ním pracovat) | **tenhle soubor** |
+| pracuješ na hře (i balanc) | `games/<hra>/CLAUDE.md` — načte se sám, jakmile čteš soubor hry; začínáš-li jinak (grep, spuštění skriptu), přečti ho nejdřív |
+| upravuješ úvodní stránku, menu nebo její zvuk | `docs/rozcestnik.md` |
+| přidáváš hru / měníš prvky společné všem hrám (návrat do menu, mobil, náhled odkazu) | `docs/nova-hra.md` |
+| pushuješ, řešíš doménu, DNS nebo výpadek webu | `docs/provoz.md` |
+| navazuješ na rozdělanou práci | `postup.md` (mimo git) |
+| potřebuješ účty, DNS hodnoty, Cloudflare | `CLAUDE.local.md` (mimo git) |
 
-**Pravidlo při významné změně:** uprav nejdřív vlastníka oblasti. Dotkne-li se změna i protějšku (nový build skript, změna deploye/struktury, nová celorepoová konvence), promítni ji i tam — ať nevzniknou dvě verze pravdy. Jako pojistka při editaci `CLAUDE.md` nebo kteréhokoli `README.md` to připomene lokální Claude Code hook (`.claude/settings.local.json`, PostToolUse) — ten je ale jen osobní (složka `.claude/` je v `.gitignore`); závazný pro všechny je tenhle commitnutý kontrakt, ne hook.
+## Údržba dokumentace
 
-## Operační pravidla pro celý web (co README nepokrývá)
-
-> Designové zásady (žádný build, minimální závislosti, hratelnost, retro) vlastní kořenový `README.md`. Tady jen to, co z nich plyne operačně:
-
-- **Žádný bundler ani ES moduly.** Čisté HTML/CSS/JS přes `<script>` tagy, musí jet i z `file://`. Phaser 3 jen přes CDN (jsdelivr).
-- **Binární assety drž na minimu.** Party Survivors je celé proceduální: grafika se kreslí do Canvas textur, SFX se syntetizují přes WebAudio; jediné binární soubory jsou **komprimované MP3** hudby na pozadí (mastery zůstávají lokálně, `.gitignore`). **Výjimka — Pong** záměrně používá reálné assety v repu: vítězné/prohrávací **fotky** (`games/pong/foto/`), `mystery_box.png` a **hlasové MP3 klipy** mystery boxů (`games/pong/sounds/`). Nová hra ať assety minimalizuje, ale bitmapy/zvukové klipy zakázané nejsou (viz `README.md`, „Přidání nové hry").
-- **Žádná hudba na pozadí webu.** Úvodní rozcestník (`index.html`) má jen jemný **syntetizovaný ambient zvuk** (`menu-ambient.js`, WebAudio, ne hudba — tlumené „bzučení", zesílí při hoveru na položku menu, spustí se po 1. gestu). Jediná hudba je Party Survivors in-game (`js/music.js` = `PS.Music`, jen v `GameScene`); Pong má vlastní syntetizované SFX. (Dřívější sdílená hub hudba menu byla zrušena.)
-- **Úvodní „attract" překryv (`#enter-overlay` v `index.html`).** Kvůli autoplay policy (zvuk až po 1. gestu) by první klik jinak padl rovnou na položku menu a odvedl do hry → ambient by se jen „probzukl". Překryv „KLIKNI PRO START" zachytí první gesto (nepřesměruje), takže ambient pak hraje jako trvalá kulisa. Spuštění zvuku zařídí `menu-ambient.js` (jeho gesture-listener); overlay jen sám sebe schová a sundá `inert` z `<nav>` (do té doby brání prokliku/Tabu na skryté odkazy). Texty jen ASCII (Press Start 2P nemá české diakritiky). **Nemazat** — bez něj se vrací původní problém.
-- **Mobil na šířku je first-class** (dotyk, fullscreen, výzva k otočení). Nový UI prvek řeš i pro touch.
-
-## Lokální spuštění
-
-Stačí otevřít HTML přímo, nebo (kvůli relativním cestám a CDN doporučeno) statický server z kořene:
-
-```
-python -m http.server
-# → http://localhost:8000/index.html
-# → http://localhost:8000/games/party-survivors/partysurvivors.html
-```
-
-## Party Survivors (`games/party-survivors/`)
-
-Klon Vampire Survivors v Phaser 3 a zdaleka nejsložitější část repa. **Kanonická dokumentace je `games/party-survivors/README.md`** (architektura, balanc, kompletní gotchas) — při jakékoli netriviální práci ji čti, neřiď se jen tímhle výtahem. Níže jen pár min, které kousnou i u malé editace, a věci nezdokumentované jinde:
-
-- **Pořadí `<script>` tagů v `partysurvivors.html` je závazné** (data → ui → audio → music → systems → scenes → main) — žádné ES moduly. Nový soubor = tag na správné místo, jinak nic nejede.
-- **Vše visí na `window.PS`** (každý soubor začíná `window.PS = window.PS || {};`); scény se na `window` samy registrují do `PS.scenes` a `main.js` z toho staví hru.
-- **Balanc je data-driven:** všechna čísla jdou do `js/data.js` (`PS.ATTACKS`, `PS.BALANCE`, `PS.HEROES`, `PS.ENEMIES`, `PS.WEAPON_PERKS`), ne natvrdo do logiky.
-- **Gotcha — globální tempo ×0,7:** rychlosti *i vzdálenosti* jsou škálované 0,7 (časy ne). Lad rychlost a vzdálenost **spolu**, jinak se rozbije balanc.
-
-### Pomocné Node skripty (`tools/`, spustitelné z kořene repa)
-
-Všechny čtou herní data přímo z `js/data.js` (vm sandbox), takže jsou vždy v synchronu.
-
-```bash
-node games/party-survivors/tools/balance-sim.js    # headless DPS simulátor útoků
-node games/party-survivors/tools/spawn-curve.js     # křivka tlaku spawnu v čase
-node games/party-survivors/tools/build-wording.js   # export VŠECH herních textů → wording.xlsx (ruční úpravy, pak read-wording.js zpět)
-node games/party-survivors/tools/build-music.js     # komprese hudby (potřebuje ffmpeg v PATH); dvojklik tools/compress-music.bat
-node games/party-survivors/tools/check-heroes.js    # ověří paritu HERO_NAMES (worker.js) ↔ PS.HEROES (data.js); exit 1 = nesoulad
-```
-
-`build-music.js` zkomprimuje mastery z `music/` → `music/compressed/*.mp3` (128k) a **autogeneruje `js/playlist.js`** (`PS.MUSIC`) — ten needituj ručně. Přidání tracku: master s číselným prefixem (`05_nazev.wav`) do `music/` + spustit skript.
-
-### Balancování útoků — jak to chce uživatel
-
-Uživatel ladí podle **pocitu ze hry**; cíl je **užší rozptyl** mezi 9 útoky, ne plochý. Dohodnutá metoda (drž se jí):
-
-- **Slabé útoky vybuff** na konkurenceschopné, ale **ne nejsilnější**; silné jen jemně srovnej, **žádné velké nerfy** toho, co už je dobré.
-- **Metrika = efektivní DPS na roj**, přičemž **slow/stun/knockback se počítají jako utility bonus** (control-heavy útoky smí mít ~20–35 % nižší surové DPS). Lad útoky **samostatně** — ignoruj pasivky hrdinů, protože jakýkoli útok si může vzít kdokoli přes level-up.
-- Útoky **na dálku** mají mít v simu **záměrně ~25–35 % nižší skóre než melee** (sim neumí změřit bezpečí distance).
-- **Pravidlo inverzní pasivky:** silný primární útok hrdiny ⇒ slabá startovní pasivka a naopak (hodnoty v `PS.HEROES`).
-- **Anti-AFK:** nepřátelé vyšších úrovní odolávají odhozu (knockbacku) → žádná builda neudrží perimetr donekonečna.
-- Všechny gameplay časy běží proti **`GameScene.gameTime`** (akumulovaná delta), **ne `this.time.now`** (ten po pauze skočí dopředu a rozbíjí buffy z klíčů).
-- **Cílová sim-pásma (preference uživatele):** melee/self ~90–125, ranged ~55–85, control-heavy ~45.
-- **Cílovou délku runu** drží `js/data.js` (a popisuje PS README) — neduplikuj sem konkrétní číslo, ať nevznikne třetí verze pravdy.
-
-Postup: uprav čísla v `js/data.js` → `node tools/balance-sim.js` → iteruj (měří effDPS ve 3 scénářích: hustý roj / řídký proud / slabí nepřátelé). Aktuální hodnoty a mechaniky vlastní PS README + `data.js`.
-
-## Leaderboard backend (`games/party-survivors/leaderboard-server/`)
-
-Cloudflare Worker + D1 (SQLite), globální TOP 10. **Jediná část repa s `package.json`/`node_modules`.** Frontend volá z `js/leaderboard.js` (`PS.LB.API`).
-
-```bash
-cd games/party-survivors/leaderboard-server
-npm run deploy    # wrangler deploy
-npm run tail      # wrangler tail (živé logy)
-```
-
-Detaily nasazení (D1 create, schema, `LB_SECRET`) jsou v `leaderboard-server/README.md`. Pozn.: mapa `HERO_NAMES` v `src/worker.js` musí odpovídat `PS.HEROES` v `js/data.js`. `LB_SECRET` se nastavuje jen přes `wrangler secret put`, není v repu.
-
-Žebříček je **globální online** TOP 10 nejdelších časů (ne localStorage), živý od 9. 6. 2026 na free tieru; klient je offline-safe. Živá adresa Workeru `https://party-survivors-lb.6a2.workers.dev` (= `PS.LB.API` v `js/leaderboard.js`). Účtová/provozní fakta (Cloudflare účet, D1 region) jsou v `CLAUDE.local.md` (negitováno, lokální).
+1. **Každá informace žije na jednom místě**; jinde jen odkaz.
+2. **Rozcestníky jsou úplné** — každý dokument je v rozcestníku své úrovně (tady, nebo v CLAUDE.md
+   hry) s tím, kdy ho číst. Nový dokument = nový řádek rozcestníku.
+3. **Do CLAUDE.md (tady i ve hrách) patří jen to, co kousne při každé změně** v té oblasti;
+   ostatní do tematického dokumentu.
+4. **Čísla do textu neopisovat** — žijí v kódu; dokumentace popisuje mechanismus a jmenuje
+   konstantu. Výjimka: designové cíle a preference uživatele.
+5. Nový dokument jen pro samostatně potřebné téma; jinak oddíl existujícího.
+6. Nová hra = `README.md` + `CLAUDE.md` podle šablony v `docs/nova-hra.md`.
+7. Kořenový `README.md` je jen vizitka pro GitHub — pravidla a postupy do něj nepatří.

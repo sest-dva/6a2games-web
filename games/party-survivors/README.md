@@ -1,114 +1,121 @@
 # Party Survivors
 
-> **Toto README je kanonický zdroj pro vnitřek hry** (architektura, balanc, gotchas). Kořenový [`CLAUDE.md`](../../CLAUDE.md) jen odkazuje a drží nejnutnější tripwiry — měníš-li tu něco zásadního (struktura souborů, build skripty, klíčové konvence), zkontroluj, jestli to nevyžaduje úpravu i tam.
-
-Klon hry **Vampire Survivors** v párty stylu (temná klubová neonová atmosféra) pro web **6&2 Games**. Hra běží **výhradně v prohlížeči** — nemá žádný build krok, žádné `package.json`, žádné `node_modules`. Zpřístupňuje se pouze přes webovou stránku `partysurvivors.html` (nalinkováno z homepage webu, `index.html`).
-
-## O hře (logika Vampire Survivors)
-
-- **Cíl: přežít co nejdéle.** Jediný výsledek runu je čas přežití; rekord se ukládá do `localStorage` **se jménem hráče** (zadává se po STARTu, pamatuje se a předvyplňuje) a zobrazuje se v menu i na Game Over.
-- Hráč ovládá **pouze pohyb** (WASD/šipky). Útoky se spouštějí **automaticky** na cooldown — míří na nejbližšího nepřítele, případně do směru pohybu.
-- Nepřátelé se valí v houstnoucích vlnách ze všech stran, při kontaktu zraňují hráče. Z mrtvol padají **XP gemy**, jejich sběrem (magnet) hráč leveluje.
-- **Level-up** pozastaví hru a nabídne 3 karty: nový útok (max 6 útoků) / vylepšení vlastněného útoku (+25 % DMG, max lvl 8) / **perk útoku** (`PS.WEAPON_PERKS` — druhá osa: +projektily, +odrazy, +cíle, +zóny…, každý s malým stropem) / pasivka (max 5 úrovní). Výběr je **vážený jako ve VS**: vylepšení už vlastněných útoků mají vyšší pravděpodobnost výskytu — v prvních levelech výrazně (rozvíjení startovního útoku), s rostoucím levelem se váhy vyrovnávají (`PS.BALANCE.weaponUpWeight`). XP křivka je **kvadratická** (`PS.BALANCE.xpForLevel` = `10 + 13(n−1) + 5(n−1)²`): každý další level vyžaduje o ~10 XP větší přírůstek než předchozí (přírůstky 18, 28, 38, …) — tempo levelování klesá celou hru a vyvažuje rostoucí přísun gemů z hustšího spawnu; kompenzováno mírnějšími HP/DMG nepřátel.
-- Obtížnost roste **nekonečnou progresí tierů** (nový tier každých ~80 s, `PS.BALANCE.tierSeconds`) a pravidelnými **bossy**. Spawn je **nerovnoměrný**: slabší stálý proud + krátké vlnky + občas velká telegrafovaná **horda** („VALÍ SE DAV!"). Balanc cílí na to, aby se hráč snažil **od první minuty**; **většina runů končí ~13–18 min** (18–23 velmi dobré, 23+ insane); tlak (počet × HP nepřátel) ale roste rychleji než DPS hráče → smrt je nakonec nevyhnutelná (žádné nesmrtelné kombo, jako VS). Křivka se ladí v `tools/spawn-curve.js`.
-- **Runda panclů** (à la Treasure ve VS): vzácný drop — průměrně **1 za ~5 minut** (`rundaInterval*`). Spawne se za okrajem obrazovky a **zlatá šipka na okraji HUD** vede hrdinu k ní; zůstává na mapě, dokud ji nesebere (max 1 zároveň). Obsahuje **2–4 náhodné klíče** (bez duplicit) + **1–3 stálé upgrady** (vylepšení vlastněných útoků / pasivky — žádné nové útoky, respektuje max levely). Sebrání pauzne hru a `RundaScene` postupně odhalí odměny.
-- **Boss aréna („ring")**: při příchodu bosse se běžní nepřátelé seběhnou na kruh kolem hrdiny a utvoří **neprostupnou, nezranitelnou zeď** — souboj je 1v1 (jen vyvolanci Haadese bojují uvnitř). Formace probíhá **vždy zvenku** (kdo je uvnitř, radiálně ustoupí na okraj; ostatní obíhají po obvodu — nikdy neprochází středem) s krátkým sprintem (`ringFormUntil`), aby se ring rychle uzavřel. Hrdina ring nemůže prorazit (geometrický clamp), na jeho okraji dostává normální kontaktní damage. Po dobu souboje **stojí spawn vln, powerupů, časomíra tierů i časomíra přežití (skóre)** — HUD u zmrazeného času ukazuje „PROBÍHÁ BOSS FIGHT"; smrtí bosse se ring rozpustí, dav pokračuje v útoku a skóre zase naskočí.
-- Průběh runu: výběr hrdiny → kiting hord + sběr XP → level-upy a build → bossové na **časovém plánu** (první ~2:30, pak à ~4:30) → smrt → Game Over s časem a rekordem.
-
-## Technologie
-
-| Co | Čím |
-|---|---|
-| Engine | **Phaser 3.87** (arcade physics) přes **CDN** (`jsdelivr`) |
-| Jazyk | čistý **JavaScript (ES6+)** — žádný TypeScript, žádný framework, žádný bundler |
-| Moduly | **žádné ES moduly** — obyčejné `<script>` tagy v pevném pořadí (funguje i z `file://`) |
-| Grafika | **100% procedurální** — vše kreslí `BootScene` do `Canvas` textur (přechody, měkké stíny, tmavý obrys + dvoutónový rim-light); generuje se **jednou při bootu**, za běhu nulová zátěž; v repu nejsou žádné obrázky/assety |
-| Vizuální styl | **temná klubová atmosféra** + čistě stylizované **nasvícené** postavy (každý hrdina unikátní obličej/rysy, ne jen barva); barevné reflektory + vinětace v `GameScene`; signature efekty útoků (blití/chcaní/pivo/dým/list mají vlastní vzhled) |
-| Zvuk | **syntetické SFX přes WebAudio** (`js/audio.js`) — žádné audio soubory |
-| Hudba | hraje **jen ve hře** (`GameScene`), **sekvenčně podle abecedy** ve smyčce, s **crossfade na konci** tracku; streamuje se po jednom přes 2 HTML5 Audio elementy (`js/music.js` = `PS.Music`). Respektuje mute (M). Mastery v `music/` se komprimují na **128k MP3** do `music/compressed/` skriptem `tools/build-music.js` (vygeneruje i seznam `js/playlist.js`); mastery jsou v `.gitignore`, do deploye jdou jen MP3. **Přidání tracku:** master s číselným prefixem (`05_…`) do `music/` + spustit skript (dvojklik `tools/compress-music.bat`) |
-| Font | **Baloo 2** (Google Fonts) — baculaté párty písmo, signature styl hry (ne pixel jako zbytek webu); plná česká diakritika v plné výšce (háčky/čárky písmeno nezmenšují) |
-| Persistence | `localStorage`: `ps_keys` (klávesy), `ps_record` (rekord `{time, name}`), `ps_name` (herní jméno), `ps_muted` (mute), `ps_touch` (dotykové volby `{size, opacity}`); `ps_best` je legacy a maže se |
-| Platforma | **PC** (klávesnice, přemapovatelná) i **mobil na šířku** (dotyk). Mobil: plovoucí joystick (`js/touch.js` = `PS.Touch`, styl Vampire Survivors — objeví se kam ťukneš, jen pohyb), dotyková tlačítka pauza/zvuk a celá obrazovka, zadání jména přes HTML `<input>`, dotykové `NASTAVENÍ`. `Scale.FIT` na PC, `ENVELOP` (vyplní displej) na mobilu — kritický HUD chrání `PS.UI.safeInset()`. Na výšku výzva „otoč na šířku". Detekce: `PS.isTouch` |
-
-## Spuštění
-
-Žádná instalace. Buď otevřít `partysurvivors.html` přímo, nebo (doporučeno):
-
-```
-python -m http.server   # v kořeni webu
-→ http://localhost:8000/games/party-survivors/partysurvivors.html
-```
-
-Potřeba internet kvůli CDN (Phaser) a Google Fonts — jinak nic.
-
-## Architektura
-
-```
-party-survivors/
-  partysurvivors.html      kostra stránky + <script> tagy (POŘADÍ JE KRITICKÉ, viz níže)
-  js/
-    data.js                ⭐ jediný zdroj pravdy: všechna herní data + PS.BALANCE
-    main.js                Phaser config, čekání na font, start hry
-    ui.js                  PS.Keys + PS.UI (text/neon helpery, safeInset, PS.isTouch, goFullscreen)
-    touch.js               PS.Touch — plovoucí joystick (mobil) + sdílený stav pohybu
-    audio.js               PS.Audio — WebAudio syntéza SFX
-    music.js               PS.Music — hudba na pozadí (jen ve hře, sekvenčně dle abecedy, crossfade)
-    playlist.js            ⚙ AUTOGEN seznam hudby (PS.MUSIC) — generuje tools/build-music.js
-    systems/
-      weapons.js           PS.Weapon — 9 archetypů útoků (cone/beam/zone/lob/bounce/sweep/ricochet/orbit/slap)
-      spawner.js           PS.Spawner — director: tiery, nerovnoměrný spawn (proud+vlnky+hordy), bossové
-    scenes/
-      BootScene.js         generování všech textur → Menu
-      MenuScene.js         START / VYSVĚTLIVKY / NASTAVENÍ, rekord
-      HelpScene.js         pravidla
-      SettingsScene.js     přemapování kláves (localStorage)
-      NameScene.js         zadání herního jména (předvyplněné, ukládá se k rekordu)
-      HeroSelectScene.js   mřížka 9 hrdinů
-      GameScene.js         ⭐ herní jádro: pohyb, kolize, damage pipeline, XP, level-up pool
-      HUDScene.js          overlay: čas, HP/XP bar, ikony zbraní
-      LevelUpScene.js      pauza + 3 karty
-      RundaScene.js        reveal odměn z Rundy panclů
-      GameOverScene.js     čas + rekord
-  plan.txt                 původní plán vývoje (fáze, tabulky parametrů)
-  logika.xlsx → data.js    herní data vznikla přepisem z tabulky (xlsx už není ve složce)
-```
-
-## Styl programování — dodržovat při úpravách
-
-1. **Globální namespace `window.PS`** — každý soubor začíná `window.PS = window.PS || {};` a věší na něj svoje věci (`PS.HEROES`, `PS.Weapon`, `PS.Audio`…). Scény se věší na `window` (`window.GameScene = class …`) a **samy se registrují** do `PS.scenes` — `main.js` z toho staví hru.
-2. **Pořadí `<script>` tagů v `partysurvivors.html` je závazné** (data → ui → audio → music → systems → scenes → main). Nový soubor = přidat tag na správné místo, jinak nic nefunguje.
-3. **Data-driven design**: čísla (DMG, cooldowny, dosahy, HP křivky, časování tierů) patří do `js/data.js` (`PS.ATTACKS`, `PS.BALANCE`…), ne natvrdo do logiky. Balanc se ladí výhradně tam. Pro vyvažování útoků slouží **`tools/balance-sim.js`** (`node tools/balance-sim.js`) — headless simulátor, který čte konstanty přímo z `data.js` a měří efektivní DPS každého útoku ve třech scénářích (hustý roj / řídký proud / slabí nepřátelé).
-4. **Komentáře a UI texty česky** (včetně diakritiky). Hlavička každého souboru = blokový komentář `// ===` s popisem role souboru.
-5. **Žádné externí assety.** Nová grafika = další `make*()` metoda v `BootScene` — kreslí se do **Canvas** textury (`canvasTex(key, w, h, (ctx) => …)`) přes přechody/měkké stíny a tmavý obrys + dvoutónový rim-light (sdílené helpery `litEdge`, `vGrad`, `groundShadow`, `rr`); textura se generuje **jednou při bootu** (za běhu nulová zátěž). Nový zvuk = další metoda v `PS.Audio` (oscilátory).
-6. **Výkon je first-class**: object pooling přes Phaser groupy s `maxSize` (enemies 400, gems 600, projectiles 120…), strop ~300 živých nepřátel (přebytek → silnější jedinci), slučování XP gemů, pool plovoucích čísel poškození, throttle hit-zvuků. Cíl: 60 FPS při 300 nepřátelích. Při recyklaci pooled objektů **nutno resetovat stavové efekty** (slow/DoT/stun — viz `spawner.js`).
-7. **Defenzivní `localStorage`** — vždy v `try/catch` (private mode).
-8. **Damage pipeline centrálně**: zbraně počítají jen vlastní base DMG, globální multiplikátory (dmgMult, krit, buffy) aplikuje `GameScene.dealDamage()`. Nový útok = nový archetyp v `PS.Weapon` (`init_*`/`tick_*` dle `archetype` v datech).
-
-## Herní obsah (definovaný v `data.js`)
-
-- **9 hrdinů** — každý má unikátní startovní útok + pasivku (Rashid/blití, Poskok/chcaní, Don G/tagování, Kaar/lahváč, Fjodor Ket/vajgly, eXtreme/pivo, fadadevada/dým, Zložík/panáky, Sajmič Uraka/list).
-- **9 archetypů útoků** — každý má unikátní profil ve stylu VS (viz komentář u `PS.ATTACKS`):
-  - **míření** (`aim`): na nejbližšího nepřítele (chcaní, vajgly, list; lahvác na náhodného z několika nejbližších) / kam je hrdina otočený (blití, pivo) / pevný vzor kolem hrdiny (tagování, dým, panáky)
-  - **DMG/CD profil**: nuke s dlouhým CD (lahvác 34/3,2 s) až rychlopalba (vajgly 8/0,5 s); každý útok má jiný base DMG
-  - **multi-target**: pierce (chcaní), odrazy mezi nepřáteli (vajgly), neomezené AoE (blití, pivo), ricochet střela probodávající nepřátele (dým), limit cílů (list)
-  - **control**: knockback síly 0–4 (bossové odolávají), stun (list, lahvác), slow (vajgly, dým, kaluže), DoT (blití)
-- **12 pasivních upgradů** (`PS.UPGRADES`): max HP, DMG, CD, rychlost, plocha, magnet, regen + krusta (armor), beef (dmg na bosse), ruleta (krit), šmelina (XP gain), mrchozrout (heal za kill).
-- **15 perků útoků** (`PS.WEAPON_PERKS`) — každý útok má 1–2 perky zaměřené na počty (další panák/lahváč/odraz/cíl/zóna, dvojité útoky, širší úhly, rychlejší tiky); efekty čte `PS.Weapon` přes `this.perk(id)`, stav drží `weapon.perkLevels`.
-- **7 powerupů („klíčky")** vzácně na mapě: heal, freeze, speed, damage, magnet, nesmrtelnost, čistka.
-- **Runda panclů** — vzácný treasure (~1/5 min): 2–4 klíče + 1–3 stálé upgrady najednou, navigace zlatou šipkou v HUD (`GameScene.spawnRunda`, `RundaScene`, šipka v `HUDScene`).
-- **5 typů nepřátel** v nekonečné tier progresi: tier *n* → typ `(n−1) % 5`, level `⌊(n−1)/5⌋+1` (gufrau → kravaťáci → pikaři → rodiče → policisté → gufrau lvl 2 → …). Každý typ má **vlastní rychlost** (`speedMult` v `PS.ENEMIES`): pikaři 1,25× (nejrychlejší) > policisté 1,1× > gufrau 1,0× > kravaťáci 0,9× > rodiče 0,85×. Strop ~101 px/s je hluboko pod rychlostí hrdiny (126 px/s) — **hrdina musí vždy zůstat nejrychlejší**.
-- **5 bossů** s vlastními mechanikami (projektily, pushwave, melee swing, summoner, hypnóza), spawn na **časovém plánu** (`PS.BALANCE.bossFirst` ~2:30, pak `bossInterval` ~4:30), n-tý boss má sílu 5n, cyklus skinů donekonečna. Každý boss fight probíhá v **aréně z ringu nepřátel** (`GameScene.startBossFight`, poloměr `PS.BALANCE.arenaRadius`); nepřátelé ve zdi mají flag `ringWall` — jsou nezranitelní a ignorují je všechny prostorové dotazy zbraní.
+Survival ve stylu **Vampire Survivors** v temné klubové atmosféře pro web 6&2 Games: přežij co
+nejdéle houstnoucí hordy, útoky se spouštějí samy, ty jen kitíš a skládáš build. Vstupní soubor
+`partysurvivors.html`, na webu `https://6a2games.cz/games/party-survivors/partysurvivors.html`.
+Herní obsah a mechaniky popisuje [`docs/mechaniky.md`](docs/mechaniky.md).
 
 ## Ovládání
 
-- Pohyb: **WASD** (přemapovatelné v Nastavení) + **šipky** vždy jako záloha
-- Pauza: **P** · Mute: **M** · Menu/výběry: klávesnice i myš
+- **PC:** pohyb **WASD** (přemapovatelné v Nastavení) + **šipky** vždy jako záloha; pauza **P**,
+  zvuk **M**; menu a výběry klávesnicí i myší.
+- **Mobil na šířku:** joystick jen pro pohyb — plovoucí (objeví se, kam ťukneš) nebo pevný vpravo
+  dole; v HUD dotyková tlačítka pauza a zvuk; jméno přes HTML `<input>`; v Nastavení volby
+  joysticku (režim, velikost, průhlednost) a celá obrazovka (na iPhonu návod „Přidat na plochu").
 
-## Známé jemnosti (gotchas)
+## Technologie a soubory
 
-- **Globální tempo hry je ×0,7**: všechny rychlosti (hrdina 126 px/s, nepřátelé, projektily, knockbacky) **i vzdálenosti** (dosahy útoků, spawn prstence, magnet, poloměr boss arény) jsou škálované koeficientem 0,7 — časy (cooldowny, tiky, trvání) zůstaly. Hra je tím v časové doméně identická, jen pomalejší na obrazovce. **Při ladění vždy škáluj rychlost a vzdálenost spolu**, jinak se rozbije balanc (např. delší dosah + stejná rychlost nepřátel = víc času v kill zóně). Neškálují se: velikosti sprajtů/hitboxů, `arenaSlotGap`, kontaktní paddingy (+14/+16) v prostorových dotazech.
+| Co | Čím |
+|---|---|
+| Engine | **Phaser 3.87** (arcade physics) přes CDN jsdelivr |
+| Jazyk | čistý JavaScript (ES6+), žádný framework, bundler ani ES moduly |
+| Grafika | **100 % procedurální** — `BootScene` kreslí vše do Canvas textur jednou při bootu (přechody, měkké stíny, tmavý obrys + dvoutónový rim-light); v repu žádné obrázky |
+| Vizuál | temná klubová atmosféra (barevné reflektory + vinětace v `GameScene`), nasvícené postavy s unikátními rysy, signature efekty útoků |
+| Zvuk | syntetické SFX přes WebAudio (`PS.Audio`) |
+| Hudba | jen ve hře (`GameScene`), tracky sekvenčně podle abecedy ve smyčce s crossfade, stream přes 2 HTML5 Audio (`PS.Music`), respektuje mute |
+| Písmo | **Baloo 2** (Google Fonts) — párty styl hry, plná česká diakritika; Permanent Marker jen pro tag „DON" |
+| Persistence | `localStorage` (klíče v `PS.STORAGE`): `ps_keys`, `ps_record`, `ps_name`, `ps_muted`, `ps_touch`; `ps_best` je legacy a maže se |
+| Platforma | PC + mobil na šířku. `Scale.FIT` na PC a v menu, `ENVELOP` ve hře na mobilu (kritický HUD chrání `PS.UI.safeInset()`); detekce `PS.isTouch` |
+| Žebříček | globální TOP 10 přes Cloudflare Worker + D1 ([`leaderboard-server/`](leaderboard-server/README.md)) — jediná část s `package.json` |
 
-- `main.js` čeká na načtení fontu se **vzorkem české diakritiky** — canvas text sám o sobě nevynutí stažení latin-ext subsetu. Při změnách načítání fontů tohle zachovat.
-- Spawn nepřátel probíhá v prstenci za okrajem kamery **s biasem do směru pohybu** — před hráčem nelze utíkat donekonečna; příliš vzdálení nepřátelé se teleportují zpět k okraji. Proud je **nerovnoměrný**: základní `spawnRate` (nepřátel/s, roste s časem), krátké vlnky (`surge`) a velké **hordy** (`spawnHorde` — soustředěný nápor z jednoho směru s telegrafem: hláška, otřes, zvuk).
+```
+party-survivors/
+  partysurvivors.html      kostra stránky, #rotate, « ZPĚT, <script> tagy (pořadí závazné — CLAUDE.md)
+  js/
+    data.js                ⭐ jediný zdroj čísel: PS.HEROES, PS.ATTACKS, PS.WEAPON_PERKS, PS.UPGRADES,
+                              PS.POWERUPS, PS.ENEMIES, PS.BOSSES, PS.BALANCE, PS.STORAGE, PS.COLORS
+    ui.js                  PS.Keys + PS.UI (text/neon helpery, safeInset, PS.isTouch, goFullscreen)
+    touch.js               PS.Touch — plovoucí joystick + sdílený stav pohybu
+    leaderboard.js         PS.LB — klient globálního žebříčku (offline-safe)
+    audio.js               PS.Audio — WebAudio syntéza SFX
+    playlist.js            ⚙ AUTOGEN seznam hudby PS.MUSIC (tools/build-music.js) — needitovat
+    music.js               PS.Music — hudba na pozadí
+    main.js                Phaser config, čekání na font, výzva k otočení, start hry
+    systems/
+      weapons.js           PS.Weapon — archetypy útoků
+      spawner.js           PS.Spawner — tiery, nerovnoměrný spawn, hordy, bossové
+    scenes/
+      BootScene.js         generování všech textur → Menu
+      MenuScene.js         START / VYSVĚTLIVKY / NASTAVENÍ / LEADERBOARD, návrat na web
+      LeaderboardScene.js  globální TOP 10
+      HelpScene.js         pravidla
+      SettingsScene.js     přemapování kláves, dotykové volby, celá obrazovka
+      NameScene.js         zadání herního jména
+      HeroSelectScene.js   mřížka hrdinů
+      GameScene.js         ⭐ herní jádro: pohyb, kolize, damage pipeline, XP, level-up pool, boss ring
+      HUDScene.js          overlay: čas, HP/XP bar, ikony zbraní, šipka k Rundě, pauza
+      LevelUpScene.js      pauza + 3 karty
+      RundaScene.js        odhalení odměn z Rundy panclů
+      GameOverScene.js     čas, level, killy, rekord, damage-metr zbraní (zápis do žebříčku odesílá GameScene)
+  tools/                   pomocné Node skripty (viz Nástroje)
+  music/                   mastery hudby (mimo git) + compressed/*.mp3 (v gitu)
+  wording.xlsx             export všech herních textů pro ruční úpravy
+  leaderboard-server/      backend žebříčku
+  docs/mechaniky.md        herní obsah a mechaniky
+  _interni/                pracovní materiály uživatele (mimo git)
+```
+
+## Konvence kódu
+
+Pravidla, která platí u každé změny (pořadí skriptů, `window.PS`, čísla jen v `data.js`, tempo
+×0,7, `gameTime`), jsou v [`CLAUDE.md`](CLAUDE.md). Dále:
+
+1. **Komentáře a UI texty česky.** Hlavička každého souboru = blokový komentář `// ===` s rolí
+   souboru.
+2. **Žádné externí assety.** Nová grafika = další `make*()` metoda v `BootScene`, kreslí se do
+   Canvas textury (`canvasTex(key, w, h, (ctx) => …)`) se sdílenými helpery `litEdge`, `vGrad`,
+   `groundShadow`, `rr`. Nový zvuk = další metoda v `PS.Audio` (oscilátory).
+3. **Výkon je first-class** (cíl 60 FPS při plném davu): object pooling přes Phaser groupy
+   s `maxSize`, strop živých nepřátel, slučování XP gemů, pool plovoucích čísel poškození,
+   throttle hit-zvuků. Při recyklaci pooled objektů **resetovat stavové efekty**
+   (slow/DoT/stun/`ringWall` — viz `spawner.js`).
+4. **Defenzivní `localStorage`** — vždy v `try/catch` (soukromý režim).
+5. **Damage pipeline centrálně:** zbraně počítají jen vlastní base DMG; globální multiplikátory
+   (dmgMult, krit, buffy) aplikuje `GameScene.dealDamage()`. Nový útok = nový archetyp
+   v `PS.Weapon` (`init_*`/`tick_*` podle `archetype` v datech).
+
+## Nástroje
+
+Node skripty v `tools/` (spouštět ze složky hry, ne z kořene repa); herní data čtou přímo z `js/data.js`
+(vm sandbox), takže jsou vždy v synchronu.
+
+| Příkaz | K čemu |
+|---|---|
+| `node tools/balance-sim.js` | headless simulátor efektivního DPS útoků (3 scénáře) — viz balancování v `CLAUDE.md` |
+| `node tools/spawn-curve.js` | křivka tlaku spawnu v čase |
+| `node tools/build-wording.js` | export **všech** herních textů do `wording.xlsx` |
+| `node tools/read-wording.js [--json]` | vypíše řádky `wording.xlsx` s vyplněným sloupcem „Nový text" (úpravy k zapracování) |
+| `node tools/build-music.js` | komprese hudby (potřebuje `ffmpeg` v PATH; nebo dvojklik `tools/compress-music.bat`) |
+| `node tools/check-heroes.js` | parita `HERO_NAMES` (backend) ↔ `PS.HEROES`; exit 1 = nesoulad |
+
+- **Úprava textů:** `build-wording.js` → uživatel vyplní sloupec „Nový text" v `wording.xlsx` →
+  `read-wording.js` vypíše změny → zapracovat do zdrojových souborů (sloupec „Zdroj") → znovu
+  `build-wording.js`.
+- **Hudba:** mastery v `music/` (v `.gitignore`) → `build-music.js` je zkomprimuje na 128k MP3 do
+  `music/compressed/` a **vygeneruje `js/playlist.js`**. Přidání tracku: master s dalším volným
+  číselným prefixem (např. `06_nazev.wav`) do `music/` + spustit skript.
+
+## Gotchas
+
+- **Tempo ×0,7 — co se neškáluje:** velikosti sprajtů a hitboxů, `arenaSlotGap`, kontaktní
+  paddingy (+14/+16) v prostorových dotazech.
+- `main.js` čeká na font se **vzorkem české diakritiky** — canvas text sám nevynutí stažení
+  latin-ext subsetu. Při změnách načítání fontů zachovat.
 - Hra startuje přes guard `window.__psGame` (ochrana proti dvojí inicializaci).
 - `heroId` se předává do `GameScene` přes `init(data)` s fallbackem na Phaser `registry`.
+- **`build-music.js` maže z `music/compressed/` každou MP3 bez masteru.** Mastery jsou mimo git →
+  spouštět jen na počítači, kde jsou všechny (po čistém klonu by smazal hudbu ve hře).
+- `data.js` vznikl přepisem tabulky `logika.xlsx`, která v repu už není; komentáře v `data.js`
+  („list Hrdinové", „sloupce…") na ni odkazují historicky.
+- Výzva k otočení (`#rotate`) se ukazuje jen během hry (běží `HUDScene`) a hru pauzne; menu jde
+  na výšku i na šířku.

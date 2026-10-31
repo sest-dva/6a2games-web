@@ -1,7 +1,5 @@
 # Party Survivors — globální žebříček (Cloudflare Worker + D1)
 
-> **Kanonický zdroj pro nasazení backendu.** Kořenový [`CLAUDE.md`](../../../CLAUDE.md) odkazuje sem; měníš-li deploy postup nebo bindings, zkontroluj soulad i tam.
-
 Malé backendové API pro online TOP 10 časů. Běží zdarma na Cloudflare Workers,
 data v Cloudflare D1 (SQLite). Frontend (hra na GitHub Pages) volá tři endpointy:
 
@@ -32,10 +30,21 @@ npx wrangler deploy
 
 Adresu `*.workers.dev` z kroku 5 vlož do `js/leaderboard.js` (konstanta `PS.LB.API`).
 
+## Provoz
+
+- Živý od 9. 6. 2026 na free tieru Cloudflare: `https://party-survivors-lb.6a2.workers.dev`
+  (= `PS.LB.API` v `js/leaderboard.js`). Klient je offline-safe — při výpadku hra běží dál bez žebříčku.
+- Jediná část repa s `package.json` / `node_modules`. Příkazy v této složce:
+  - `npm run deploy` — `wrangler deploy` (**nasadí rovnou ostrý backend**),
+  - `npm run tail` — `wrangler tail` (živé logy).
+- Účet, region D1 a další provozní údaje jsou v kořenovém `CLAUDE.local.md` (mimo git).
+
 ## Poznámky
 
 - `LB_SECRET` se nastavuje jen přes `wrangler secret put`, **není v repozitáři**.
 - Anti-cheat: HMAC podpis tokenu, kontrola reálně uplynulého času, jednorázové
   tokeny, rate limiting podle hashe IP, bílá listina hrdinů, strop času.
   Hra v prohlížeči nejde zabezpečit 100 % — tohle ztěžuje běžné podvody.
-- Mapa `HERO_NAMES` ve `src/worker.js` musí odpovídat `js/data.js` (`PS.HEROES`).
+- Mapa `HERO_NAMES` ve `src/worker.js` musí odpovídat `js/data.js` (`PS.HEROES`) — při přidání
+  nebo přejmenování hrdiny upravit obojí, ověřit `node tools/check-heroes.js` (ze složky hry)
+  a backend znovu nasadit.

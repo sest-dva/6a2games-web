@@ -1,32 +1,28 @@
 # 6&2 Games
 
-Webové arkádové hry s retro CRT estetikou. Každá hra je samostatná a běží přímo v prohlížeči bez build kroků.
+Retro arkádové hry s CRT estetikou, které běží přímo v prohlížeči — na počítači i na mobilu
+(na šířku). Hraj na **[6a2games.cz](https://6a2games.cz)**.
 
-## Struktura projektu
+## Hry
+
+| Hra | O čem je | Složka |
+|---|---|---|
+| **6&2 Pong** | klasický Pong proti počítači nebo ve dvou, s mystery boxy, které mění průběh hry | [`games/pong/`](games/pong/) |
+| **Party Survivors** | survival ve stylu Vampire Survivors v temném klubu: přežij co nejdéle hordy nepřátel, s globálním žebříčkem | [`games/party-survivors/`](games/party-survivors/) |
+
+## Spuštění na počítači
+
+Žádná instalace ani build. Stačí otevřít `index.html`, nebo (doporučeno) spustit statický server
+v kořeni repa:
 
 ```
-/
-├── index.html          # Hlavní stránka s menu her
-├── menu-ambient.js     # Syntetizovaný ambient zvuk menu (WebAudio)
-├── favicon.png
-└── games/
-    └── <nazev-hry>/    # Každá hra má vlastní složku
-        └── index.html
+python -m http.server
+# → http://localhost:8000/index.html
 ```
 
-## Zásady vývoje
+Hry načítají písma (a Party Survivors engine Phaser) z internetu.
 
-- **Hratelnost na prvním místě** — hra musí být zábavná a intuitivní, bez frustrace z bugů
-- **Žádný build krok** — žádný Webpack, Vite ani bundler; hry se načítají přímo v prohlížeči
-- **Minimální závislosti** — pro jednoduché hry čistý HTML/CSS/JS; pro komplexní hry je Phaser 3 přes CDN přijatelný
-- **Retro vibe, moderní kvalita** — CRT estetika, ale kód čistý a robustní
+## Dokumentace
 
-## Přidání nové hry
-
-1. Vytvořit složku `games/<nazev>/`
-2. Implementovat hru — jednodušší hry v jednom `index.html`, komplexnější mohou mít podsložky pro assety a JS soubory
-3. Přidat odkaz do `index.html` (hlavní menu)
-
-## Vývoj s Claude Code
-
-V kořeni je [`CLAUDE.md`](CLAUDE.md) — operační příručka pro AI agenta (příkazy, deploy, cross-file vazby) a rozcestník po všech README v repu. **Toto README zůstává kanonickým zdrojem pro vizi a zásady vývoje.** Měníš-li je zásadně, zkontroluj, jestli změna nepatří i do `CLAUDE.md` (viz tam oddíl „Zdroje pravdy").
+Postupy pro vývoj jsou v [`docs/`](docs/), popis každé hry v `README.md` její složky.
+Vstupním bodem pro AI agenta je [`CLAUDE.md`](CLAUDE.md).
