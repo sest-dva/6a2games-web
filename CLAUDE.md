@@ -17,6 +17,8 @@ závislostmi je leaderboard backend Party Survivors (Cloudflare Worker).
 - **`git push` na `main` = okamžité nasazení na ostrý web** (GitHub Pages). Pushovat jen se
   souhlasem uživatele.
 - **Repo musí zůstat veřejné**, jinak web spadne (viz `docs/provoz.md`).
+- **Repo nenese jméno autora** — commity jen jako `6&2 <noreply@6a2games.cz>`, žádná osobní
+  jména, e-maily ani účty v souborech (viz `docs/provoz.md`).
 - **Mobil na šířku je first-class** — každý nový UI prvek řeš i pro dotyk.
 - Lokální spuštění: `python -m http.server` v kořeni → `http://localhost:8000/index.html`.
 
